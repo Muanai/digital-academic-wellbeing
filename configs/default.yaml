@@ -1,0 +1,17 @@
+experiment_name: "exp001_baseline"
+seed: 42
+data:
+  raw_path: "data/raw/"
+  processed_path: "data/processed/"
+  target_col: "target"
+model:
+  name: "lightgbm"
+  params:
+    objective: "regression"
+    learning_rate: 0.05
+    n_estimators: 1000
+    max_depth: -1
+    random_state: 42
+training:
+  n_splits: 5
+  early_stopping_rounds: 100

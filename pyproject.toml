@@ -1,0 +1,25 @@
+[project]
+name = "digital-academic-wellbeing"
+version = "0.1.0"
+description = "Codebase for Digital Academic Wellbeing Kaggle Competition"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "pandas",
+    "polars",
+    "numpy",
+    "scikit-learn",
+    "catboost",
+    "lightgbm",
+    "xgboost",
+    "optuna",
+    "mlflow",
+    "wandb",
+    "shap",
+    "pyarrow",
+    "fastparquet"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

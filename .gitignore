@@ -1,0 +1,44 @@
+# Data and Models
+data/raw/
+data/processed/
+data/external/
+data/submissions/
+models/
+*.csv
+*.parquet
+*.pkl
+*.joblib
+*.h5
+*.pth
+*.pt
+*.bin
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Logs and Experiments
+experiments/
+wandb/
+mlruns/
+*.log
+
+# Jupyter and Python
+.ipynb_checkpoints
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
