@@ -26,3 +26,7 @@ During our Phase 1 (Data Forensics & Canonicalization) implementation, we establ
 1. **Tooling Choice**: While `polars` is recommended for large datasets, we use **`pandas`** for forensics and preprocessing scripts since the dataset is small (4,048 rows), allowing for easier visual exploration and statistical testing.
 2. **Handling Impossible Outliers**: Values that are strictly impossible (e.g., negative counts like `notifications = -5`) are converted to `NaN` during the canonicalization step. Do not drop the rows; let the Phase 2 imputer handle them to maintain the dataset distribution.
 3. **Canonicalization Output**: Never overwrite raw column data. Always retain the original column and create the cleaned/normalized version with a `_clean` suffix (e.g., `age` -> `age_clean`).
+
+## Phase 3 Conventions & Decisions (Feature Engineering)
+1. **Domain-Specific vs Automated**: We prioritize manual, domain-specific feature engineering (e.g., `stress_gpa_ratio`, `screen_to_sleep_ratio`) based on Error Analysis over aggressive automated polynomial expansions. This prevents overfitting on our small dataset.
+2. **Handling Nonlinearities**: Linear baseline models (Logistic Regression) benefit greatly from binned features (`is_sleep_deprived`, `high_caffeine`), while tree-based models (XGBoost, RandomForest) benefit from interaction ratios. We include both types in `src/features.py`.

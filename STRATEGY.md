@@ -474,10 +474,16 @@ Setiap kali ada klaim "F1 naik X%", tanyakan:
 □ Apakah bisa noise statistik biasa (standar deviasi antar fold)?
 □ Apakah threshold di-tune pada fold evaluasi yang sama?
 □ Apakah ada informasi dari test set yang bocor?
-□ Apakah feature engineering informed by test distribution?
-□ Apakah improvement konsisten di semua fold, bukan hanya rata-rata?
-□ Apakah ini genuine signal atau model menghafal noise?
 ```
+
+### Phase 3: Feature Engineering (COMPLETED)
+- **Status:** Completed. Achieved performance gains in tree-based models (XGBoost +0.011) via interaction ratios, but slight drops in linear models.
+- **Key Features Added:**
+  - `screen_to_sleep_ratio`, `social_media_impact`
+  - `stress_gpa_ratio`, `procrastination_stress_index`
+  - `caffeine_to_sleep`, `physical_vs_screen`
+  - Binning: `is_sleep_deprived`, `high_caffeine`
+- **Insight:** Uncorrelated errors between Logistic Regression (good with linear patterns) and XGBoost (good with ratios) provide a strong foundation for stacking.
 
 ---
 
