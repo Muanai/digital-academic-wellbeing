@@ -46,3 +46,4 @@ Thumbs.db
 catboost_info/
 mlflow.db
 mlruns/
+scratch/
