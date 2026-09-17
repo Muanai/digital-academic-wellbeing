@@ -5,7 +5,8 @@ from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
+from sklearn.utils.class_weight import compute_sample_weight
 import lightgbm as lgb
 import xgboost as xgb
 from catboost import CatBoostClassifier
@@ -13,6 +14,10 @@ from catboost import CatBoostClassifier
 def get_baseline_models(random_state: int = 42) -> dict:
     """
     Returns a dictionary of candidate baseline models with class_weight='balanced'.
+    
+    Phase 3.5 update:
+    - ExtraTrees added for ensemble diversity (STRATEGY E004)
+    - XGBoost note: use compute_sample_weights() helper at fit-time via evaluate_model
     """
     models = {
         "LogisticRegression": LogisticRegression(
@@ -21,17 +26,17 @@ def get_baseline_models(random_state: int = 42) -> dict:
         "RandomForest": RandomForestClassifier(
             class_weight='balanced', random_state=random_state, n_estimators=100
         ),
+        "ExtraTrees": ExtraTreesClassifier(
+            class_weight='balanced', random_state=random_state, n_estimators=100
+        ),
         "LightGBM": lgb.LGBMClassifier(
             class_weight='balanced', random_state=random_state, n_estimators=100,
             verbose=-1
         ),
-        # XGBoost handles class_weight via scale_pos_weight for binary, 
-        # but for multiclass 'balanced' is not a direct parameter in the same way.
-        # However, XGBClassifier does not have `class_weight='balanced'`.
-        # For baseline, we will leave XGBoost without it or compute sample_weights later.
-        # For now we'll just instantiate it.
+        # XGBoost does not support class_weight='balanced' natively for multiclass.
+        # Pass sample_weight at fit-time via evaluate_model() using compute_xgb_sample_weights().
         "XGBoost": xgb.XGBClassifier(
-            random_state=random_state, n_estimators=100, use_label_encoder=False, 
+            random_state=random_state, n_estimators=100,
             eval_metric='mlogloss'
         ),
         "CatBoost": CatBoostClassifier(
@@ -40,6 +45,15 @@ def get_baseline_models(random_state: int = 42) -> dict:
         )
     }
     return models
+
+
+def compute_xgb_sample_weights(y: pd.Series) -> np.ndarray:
+    """
+    Computes per-sample class-balanced weights for XGBoost.
+    XGBoost lacks native class_weight='balanced'; this is the workaround.
+    Uses sklearn's compute_sample_weight which mirrors the balanced formula.
+    """
+    return compute_sample_weight(class_weight='balanced', y=y)
 
 def build_baseline_pipeline(model, numeric_features: list, categorical_features: list) -> Pipeline:
     """

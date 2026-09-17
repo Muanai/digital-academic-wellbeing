@@ -69,7 +69,7 @@ def main():
         
         with mlflow.start_run(run_name=f"{exp_id}_XGBoost"):
             mlflow.log_param("families", "+".join(families))
-            mean_f1, oof_preds = evaluate_model(pipeline, X, y, cv)
+            mean_f1, oof_preds, _ = evaluate_model(pipeline, X, y, cv)
             
             mlflow.log_metric("macro_f1_oof", mean_f1)
             

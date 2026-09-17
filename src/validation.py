@@ -9,18 +9,33 @@ def get_cv_strategy(n_splits: int = 5, random_state: int = 42) -> StratifiedKFol
     """
     return StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
 
-def evaluate_model(model, X: pd.DataFrame, y: pd.Series, cv: StratifiedKFold):
+def evaluate_model(model, X: pd.DataFrame, y: pd.Series, cv: StratifiedKFold,
+                   sample_weight: np.ndarray = None):
     """
     Evaluates a model using the provided CV strategy.
-    Returns the OOF (Out-Of-Fold) predictions and the overall Macro-F1 score.
+    Returns:
+        overall_score: OOF Macro-F1 (float)
+        oof_preds:     OOF hard predictions (pd.Series, same index as y)
+        oof_proba:     OOF probabilities    (np.ndarray, shape [n_samples, n_classes])
+                       None if model has no predict_proba.
+    
+    Phase 3.5 update:
+    - OOF probabilities returned for ensemble / threshold tuning / stacking.
+    - sample_weight support: pass pre-computed weights for XGBoost balancing.
+      Weights are sliced per fold and passed as classifier__sample_weight.
     """
-    # Create empty Series for OOF predictions with same index as y
+    # Create empty Series for OOF hard predictions with same index as y
     oof_preds = pd.Series(index=y.index, dtype=y.dtype)
+    
+    n_classes = y.nunique()
+    oof_proba = np.full((len(y), n_classes), np.nan)
     
     fold_scores = []
     
     X_arr = X.values if isinstance(X, pd.DataFrame) else X
     y_arr = y.values if isinstance(y, pd.Series) else y
+    
+    has_proba = hasattr(model, 'predict_proba')
     
     for fold, (train_idx, val_idx) in enumerate(cv.split(X_arr, y_arr)):
         X_train = X.iloc[train_idx] if isinstance(X, pd.DataFrame) else X_arr[train_idx]
@@ -29,7 +44,12 @@ def evaluate_model(model, X: pd.DataFrame, y: pd.Series, cv: StratifiedKFold):
         X_val = X.iloc[val_idx] if isinstance(X, pd.DataFrame) else X_arr[val_idx]
         y_val = y.iloc[val_idx] if isinstance(y, pd.Series) else y_arr[val_idx]
         
-        model.fit(X_train, y_train)
+        # Pass sample_weight if provided (XGBoost class balancing workaround)
+        if sample_weight is not None:
+            sw_train = sample_weight[train_idx]
+            model.fit(X_train, y_train, classifier__sample_weight=sw_train)
+        else:
+            model.fit(X_train, y_train)
         
         preds = model.predict(X_val)
         
@@ -37,8 +57,13 @@ def evaluate_model(model, X: pd.DataFrame, y: pd.Series, cv: StratifiedKFold):
         if preds.ndim > 1:
             preds = preds.ravel()
             
-        # Save OOF predictions
+        # Save OOF hard predictions
         oof_preds.iloc[val_idx] = preds
+        
+        # Save OOF probabilities if available
+        if has_proba:
+            proba = model.predict_proba(X_val)
+            oof_proba[val_idx] = proba
         
         score = f1_score(y_val, preds, average='macro')
         fold_scores.append(score)
@@ -47,7 +72,8 @@ def evaluate_model(model, X: pd.DataFrame, y: pd.Series, cv: StratifiedKFold):
     overall_score = f1_score(y, oof_preds, average='macro')
     print(f"  Overall OOF Macro-F1: {overall_score:.4f}")
     
-    return overall_score, oof_preds
+    return overall_score, oof_preds, (oof_proba if has_proba else None)
+
 
 def generate_error_analysis(y_true, y_pred, model_name: str, output_dir: str):
     """

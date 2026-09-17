@@ -1,6 +1,7 @@
 import os
 import sys
 import pandas as pd
+import numpy as np
 import mlflow
 from pathlib import Path
 
@@ -9,7 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.preprocessing import apply_canonicalization
 from src.features import generate_features
 from src.validation import get_cv_strategy, evaluate_model, generate_error_analysis
-from src.models import get_baseline_models, build_baseline_pipeline
+from src.models import get_baseline_models, build_baseline_pipeline, compute_xgb_sample_weights
 
 def main():
     print("Starting Phase 3 Feature Engineering Evaluation...")
@@ -57,12 +58,16 @@ def main():
     
     results = []
     oof_predictions_df = pd.DataFrame(index=df_train_raw.index)
+    oof_probas = {}  # model_name -> np.ndarray [n_samples, n_classes]
     
     # Directory to store local artifacts before logging to MLflow
     artifact_dir = "experiments/artifacts"
     os.makedirs(artifact_dir, exist_ok=True)
     
-    with mlflow.start_run(run_name="Feature_Engineering_All_Models"):
+    # Precompute sample_weight for XGBoost (class balancing workaround)
+    xgb_sample_weight = compute_xgb_sample_weights(y)
+    
+    with mlflow.start_run(run_name="Phase_3_5_Hardening"):
         mlflow.log_param("cv_folds", 5)
         mlflow.log_param("cv_seed", 42)
         mlflow.log_param("numeric_features_count", len(numeric_features))
@@ -73,10 +78,15 @@ def main():
             
             with mlflow.start_run(run_name=f"Model_{model_name}", nested=True):
                 pipeline = build_baseline_pipeline(model, numeric_features, categorical_features)
-                overall_score, oof_preds = evaluate_model(pipeline, X, y, cv)
+                
+                # XGBoost gets sample_weight for class balancing
+                sw = xgb_sample_weight if model_name == "XGBoost" else None
+                overall_score, oof_preds, oof_proba = evaluate_model(pipeline, X, y, cv, sample_weight=sw)
                 
                 # Save OOF predictions for ensemble later
                 oof_predictions_df[f"{model_name}_pred"] = oof_preds
+                if oof_proba is not None:
+                    oof_probas[model_name] = oof_proba
                 
                 mlflow.log_param("model_name", model_name)
                 mlflow.log_metric("macro_f1", overall_score)
@@ -105,7 +115,7 @@ def main():
 
         # 5. Summarize Results
         df_results = pd.DataFrame(results).sort_values(by='Macro-F1 OOF', ascending=False)
-        print("\n=== Baseline Results ===")
+        print("\n=== Phase 3.5 Hardening Results ===")
         print(df_results)
         
         # Save OOF predictions DataFrame
@@ -113,6 +123,12 @@ def main():
         oof_predictions_df['True_Label'] = y
         oof_predictions_df.to_csv(oof_path, index=False)
         mlflow.log_artifact(oof_path)
+        
+        # Save OOF probabilities per model
+        for model_name, proba in oof_probas.items():
+            proba_path = os.path.join(artifact_dir, f"{model_name}_oof_proba.npy")
+            np.save(proba_path, proba)
+            mlflow.log_artifact(proba_path)
         
         # Save Report locally
         report_path = r"C:\Users\user\.gemini\antigravity-ide\brain\61d1d5ec-f855-42cb-8916-4ccc318a689b\phase3_feature_engineering_report.md"
