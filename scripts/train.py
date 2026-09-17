@@ -7,11 +7,12 @@ from pathlib import Path
 # Add src to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.preprocessing import apply_canonicalization
+from src.features import generate_features
 from src.validation import get_cv_strategy, evaluate_model, generate_error_analysis
 from src.models import get_baseline_models, build_baseline_pipeline
 
 def main():
-    print("Starting Phase 2.5 MLflow Baseline Evaluation...")
+    print("Starting Phase 3 Feature Engineering Evaluation...")
     data_dir = Path("data/raw")
     train_path = data_dir / "train.csv"
     
@@ -24,20 +25,23 @@ def main():
     # 1. Apply Canonicalization (Phase 1)
     df_train_clean = apply_canonicalization(df_train_raw)
     
+    # 2. Apply Feature Engineering (Phase 3)
+    df_train_engineered = generate_features(df_train_clean)
+    
     # Target definition
     target_col = 'digital_academic_wellbeing_level'
     
     # Map target to integers (XGBoost requires 0, 1, 2)
     target_map = {'Low': 0, 'Medium': 1, 'High': 2}
-    df_train_clean[target_col] = df_train_clean[target_col].map(target_map)
+    df_train_engineered[target_col] = df_train_engineered[target_col].map(target_map)
     
-    # We will use the _clean columns for model training, and drop raw columns with clean equivalents
+    # We will use the _clean and engineered columns for model training, and drop raw columns with clean equivalents
     cols_to_drop = ['respondent_id', target_col]
-    raw_to_drop = [c.replace('_clean', '') for c in df_train_clean.columns if c.endswith('_clean')]
+    raw_to_drop = [c.replace('_clean', '') for c in df_train_engineered.columns if c.endswith('_clean')]
     cols_to_drop.extend(raw_to_drop)
     
-    X = df_train_clean.drop(columns=cols_to_drop, errors='ignore')
-    y = df_train_clean[target_col]
+    X = df_train_engineered.drop(columns=cols_to_drop, errors='ignore')
+    y = df_train_engineered[target_col]
     
     numeric_features = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
     categorical_features = X.select_dtypes(include=['object', 'category']).columns.tolist()
@@ -49,7 +53,7 @@ def main():
     models = get_baseline_models(random_state=42)
     
     # 4. Setup MLflow
-    mlflow.set_experiment("Phase_2_Baseline")
+    mlflow.set_experiment("Phase_3_Feature_Engineering")
     
     results = []
     oof_predictions_df = pd.DataFrame(index=df_train_raw.index)
@@ -58,7 +62,7 @@ def main():
     artifact_dir = "experiments/artifacts"
     os.makedirs(artifact_dir, exist_ok=True)
     
-    with mlflow.start_run(run_name="Baseline_Evaluation_All_Models"):
+    with mlflow.start_run(run_name="Feature_Engineering_All_Models"):
         mlflow.log_param("cv_folds", 5)
         mlflow.log_param("cv_seed", 42)
         mlflow.log_param("numeric_features_count", len(numeric_features))
@@ -111,14 +115,14 @@ def main():
         mlflow.log_artifact(oof_path)
         
         # Save Report locally
-        report_path = r"C:\Users\user\.gemini\antigravity-ide\brain\61d1d5ec-f855-42cb-8916-4ccc318a689b\phase2_5_mlflow_report.md"
+        report_path = r"C:\Users\user\.gemini\antigravity-ide\brain\61d1d5ec-f855-42cb-8916-4ccc318a689b\phase3_feature_engineering_report.md"
         
         md_table = "| Model | Macro-F1 OOF |\n|---|---|\n"
         for _, row in df_results.iterrows():
             md_table += f"| {row['Model']} | {row['Macro-F1 OOF']:.4f} |\n"
             
         report_lines = [
-            "# Phase 2.5 Baseline MLflow Results",
+            "# Phase 3 Feature Engineering MLflow Results",
             "\n",
             md_table,
             "\n",
