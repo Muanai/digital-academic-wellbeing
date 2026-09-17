@@ -3,9 +3,10 @@ import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer, KNNImputer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, QuantileTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.utils.class_weight import compute_sample_weight
 import lightgbm as lgb
 import xgboost as xgb
@@ -28,6 +29,10 @@ def get_baseline_models(random_state: int = 42) -> dict:
         ),
         "ExtraTrees": ExtraTreesClassifier(
             class_weight='balanced', random_state=random_state, n_estimators=100
+        ),
+        "MLPClassifier": MLPClassifier(
+            hidden_layer_sizes=(64, 32), max_iter=1000, early_stopping=True, 
+            random_state=random_state
         ),
         "LightGBM": lgb.LGBMClassifier(
             class_weight='balanced', random_state=random_state, n_estimators=100,
@@ -60,10 +65,10 @@ def build_baseline_pipeline(model, numeric_features: list, categorical_features:
     Builds a central scikit-learn Pipeline with KNN Imputer for numerics
     and Simple Imputer + OneHotEncoder for categoricals.
     """
-    # Numeric pipeline: KNNImputer -> StandardScaler
+    # Numeric pipeline: KNNImputer -> QuantileTransformer (robust heavy-tail normalization)
     numeric_transformer = Pipeline(steps=[
         ('imputer', KNNImputer(n_neighbors=5)),
-        ('scaler', StandardScaler())
+        ('scaler', QuantileTransformer(output_distribution='normal', random_state=42))
     ])
     
     # Categorical pipeline: SimpleImputer (most frequent) -> OneHotEncoder
