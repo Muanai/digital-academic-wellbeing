@@ -19,6 +19,8 @@ def clean_impossible_values(df: pd.DataFrame) -> pd.DataFrame:
     """
     Cleans impossible values such as negative notifications_per_day or screen time > 24
     by replacing them with NaN.
+    
+    Convention (Phase 1): Impossible values → NaN; KNN Imputer handles the rest.
     """
     df = df.copy()
     
@@ -26,13 +28,14 @@ def clean_impossible_values(df: pd.DataFrame) -> pd.DataFrame:
     if 'notifications_per_day_clean' in df.columns:
         df.loc[df['notifications_per_day_clean'] < 0, 'notifications_per_day_clean'] = np.nan
         
-    # Valid ranges based on STRATEGY.md
+    # Screen time > 24 hrs/day is logically impossible — set to NaN
+    # (Phase 3.5 Hardening: audit found 28 train rows and 5 test rows with values up to 48h)
     if 'screen_time_hrs_per_day_clean' in df.columns:
-        # Note: Strategy says max observed is 48, investigate typo/artifact
-        # We will keep it for now but flag > 24 as NaN if we strictly believe it's 24 hours max
-        # The strategy says "investigate", so let's leave it as is in canonicalization, 
-        # or just clip strictly impossible (e.g. > 24 for a daily feature).
-        pass 
+        impossible_mask = df['screen_time_hrs_per_day_clean'] > 24
+        n_impossible = impossible_mask.sum()
+        if n_impossible > 0:
+            print(f"  [canonicalization] screen_time > 24h: {n_impossible} rows -> NaN")
+        df.loc[impossible_mask, 'screen_time_hrs_per_day_clean'] = np.nan
         
     return df
 
@@ -60,10 +63,12 @@ def apply_canonicalization(df: pd.DataFrame) -> pd.DataFrame:
         if col in df.columns:
             df[f'{col}_clean'] = normalize_binary(df[col])
             
-    # 4. Copy numeric columns that don't need text parsing but might need outlier cleaning
-    # For now, let's just make a clean copy of the one we know needs cleaning
+    # 4. Copy numeric columns that need outlier cleaning
     if 'notifications_per_day' in df.columns:
         df['notifications_per_day_clean'] = df['notifications_per_day'].astype(float)
+        
+    if 'screen_time_hrs_per_day' in df.columns:
+        df['screen_time_hrs_per_day_clean'] = df['screen_time_hrs_per_day'].astype(float)
         
     # Apply impossible values cleaning
     df = clean_impossible_values(df)
