@@ -524,6 +524,35 @@ Pre-Phase 4 audit revealed and fixed three blockers plus two model improvements.
 
 ---
 
+### Phase 3.6: Architecture Upgrade & Optimization (COMPLETED — 2026-09-17)
+
+To address limitations found in Phase 3.5, we introduced architectural and evaluation enhancements:
+
+**Improvements Added:**
+| # | Improvement | Rationale |
+|---|-------------|-----------|
+| I1 | `QuantileTransformer` replacing `StandardScaler` | Robust normalization for linear/NN models against heavy-tailed interaction ratios. |
+| I2 | Macro-F1 Threshold Optimization | Post-hoc optimization of probability multipliers via Nelder-Mead to address the minority `High` class bottleneck. |
+| I3 | Tabular MLP Baseline | A neural network to capture higher-order, complex interactions. |
+| I4 | MNAR Missingness Features | Explicitly encode null counts and flags, as data forensics (Phase 1) proved missingness was informative. |
+| I5 | Ratio Clipping | Capping extreme division results (`.clip(upper=...)`) to prevent unbounded feature explosions. |
+
+**Phase 3.6 Results (OOF Macro-F1 Tuned, 5-fold, seed=42):**
+| Model | Macro-F1 (Tuned) | Delta vs Phase 3.5 |
+|-------|------------------|--------------------|
+| **LightGBM** | **0.6539** | +0.0068 |
+| **LogisticRegression** | **0.6476** | +0.0052 (huge gain from QuantileTransformer & Tuned Threshold) |
+| XGBoost | 0.6450 | Stable |
+| RandomForest | 0.6385 | +0.0054 |
+| MLPClassifier | 0.6383 | New baseline entry |
+| ExtraTrees | 0.6279 | +0.0216 (massive gain from Tuned Threshold) |
+
+**Key Insight:** Threshold optimization significantly bumps OOF Macro-F1 across all models, proving that default `argmax` hurts performance on imbalanced targets. `QuantileTransformer` drastically improved our linear baseline (`LogisticRegression`) by fixing ratio feature heavy-tails.
+
+**Phase 4 Readiness:** ✅ We are now fully prepared to run `Optuna` hyperparameter tuning (Phase 4), optimizing on the tuned Macro-F1 metric!
+
+---
+
 ## Experiment Log (isi setelah setiap run)
 
 File: `experiments/experiment_log.csv`

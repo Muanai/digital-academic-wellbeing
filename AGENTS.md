@@ -30,3 +30,8 @@ During our Phase 1 (Data Forensics & Canonicalization) implementation, we establ
 ## Phase 3 Conventions & Decisions (Feature Engineering)
 1. **Domain-Specific vs Automated**: We prioritize manual, domain-specific feature engineering (e.g., `stress_gpa_ratio`, `screen_to_sleep_ratio`) based on Error Analysis over aggressive automated polynomial expansions. This prevents overfitting on our small dataset.
 2. **Handling Nonlinearities**: Linear baseline models (Logistic Regression) benefit greatly from binned features (`is_sleep_deprived`, `high_caffeine`), while tree-based models (XGBoost, RandomForest) benefit from interaction ratios. We include both types in `src/features.py`.
+
+## Phase 3.6 Conventions & Decisions (Architecture Upgrade)
+1. **Handling Heavy Tails**: Since ratio features (e.g., `screen_to_sleep_ratio`) can explode when denominators are near zero, we strictly use `.clip(upper=...)` on them. Furthermore, to help linear and NN models, we use `QuantileTransformer(output_distribution='normal')` instead of `StandardScaler`.
+2. **Threshold Optimization**: The target metric is `Macro-F1`. Default `argmax` over probabilities is suboptimal due to class imbalance. We always apply post-hoc threshold multiplier optimization using SciPy's Nelder-Mead on OOF probabilities to maximize Macro-F1.
+3. **Tabular Deep Learning**: We include a small `MLPClassifier` as a baseline to capture complex non-linear combinations that tree-based models might struggle with.
