@@ -487,6 +487,43 @@ Setiap kali ada klaim "F1 naik X%", tanyakan:
 
 ---
 
+### Phase 3.5: Hardening (COMPLETED — 2026-09-17)
+
+Pre-Phase 4 audit revealed and fixed three blockers plus two model improvements.
+
+**Blockers Fixed:**
+
+| # | Issue | Fix |
+|---|-------|-----|
+| B1 | `screen_time > 24h` (28 train rows, values up to 48h) | `-> NaN` in `preprocessing.py` per Phase 1 convention |
+| B2 | XGBoost had no class balancing | `compute_xgb_sample_weights()` in `models.py`, passed per-fold via `evaluate_model()` |
+| B3 | `evaluate_model()` only returned hard predictions | Now returns `(score, oof_preds, oof_proba)` — probabilities saved as `.npy` per model |
+
+**Improvements Added:**
+
+| # | Improvement | Rationale |
+|---|-------------|-----------|
+| I1 | ExtraTrees added to model pool | STRATEGY E004: inductive bias diversity for ensemble |
+| I2 | 3 new cross-domain features | `gpa_x_attendance`, `study_vs_screen`, `recovery_index` |
+| I3 | `generate_features()` canonical entry point | `train.py` and `run_feature_experiments.py` now share one clean interface |
+
+**Phase 3.5 Results (OOF Macro-F1, 5-fold, seed=42):**
+
+| Model | Score | Delta vs Phase 3 |
+|-------|-------|-----------------|
+| **LightGBM** | **0.6471** | New leader |
+| **XGBoost** | **0.6461** | +~0.0008 (class weights helped) |
+| LogisticRegression | 0.6424 | +improvement (new features) |
+| RandomForest | 0.6331 | — |
+| CatBoost | 0.6305 | — |
+| ExtraTrees | 0.6063 | Weak solo; kept for ensemble diversity |
+
+**Key Insight:** ExtraTrees solo is weak (0.606) but its error correlation with other models may still be low — it should be included in the ensemble pool and let Optuna decide its weight in Phase 4.
+
+**Phase 4 Readiness:** ✅ All blockers resolved. OOF probabilities available for all models. Pipeline is clean and reproducible.
+
+---
+
 ## Experiment Log (isi setelah setiap run)
 
 File: `experiments/experiment_log.csv`
