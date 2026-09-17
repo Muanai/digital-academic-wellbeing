@@ -23,14 +23,14 @@ def add_cross_domain_features(df: pd.DataFrame) -> pd.DataFrame:
     df_feat = df.copy()
     eps = 1e-5
     # Core cross-domain ratios (Phase 2 Error Analysis winners)
-    df_feat['screen_to_sleep_ratio'] = df_feat['screen_time_hrs_per_day'] / (df_feat['sleep_hours'] + eps)
-    df_feat['stress_gpa_ratio'] = df_feat['academic_stress_level_1_10'] / (df_feat['gpa'] + eps)
-    df_feat['caffeine_to_sleep'] = df_feat['caffeine_intake_mg_per_day'] / (df_feat['sleep_hours'] + eps)
-    df_feat['physical_vs_screen'] = df_feat['physical_activity_hrs_per_week'] / (df_feat['screen_time_hrs_per_day'] + eps)
+    df_feat['screen_to_sleep_ratio'] = (df_feat['screen_time_hrs_per_day'] / (df_feat['sleep_hours'] + eps)).clip(upper=50)
+    df_feat['stress_gpa_ratio'] = (df_feat['academic_stress_level_1_10'] / (df_feat['gpa'] + eps)).clip(upper=50)
+    df_feat['caffeine_to_sleep'] = (df_feat['caffeine_intake_mg_per_day'] / (df_feat['sleep_hours'] + eps)).clip(upper=200)
+    df_feat['physical_vs_screen'] = (df_feat['physical_activity_hrs_per_week'] / (df_feat['screen_time_hrs_per_day'] + eps)).clip(upper=50)
     # Phase 3.5: Additional cross-domain features from STRATEGY.md
     df_feat['gpa_x_attendance'] = df_feat['gpa'] * df_feat['class_attendance_percent']
-    df_feat['study_vs_screen'] = df_feat['study_hours_per_week'] / (df_feat['screen_time_hrs_per_day'] * 7 + eps)
-    df_feat['recovery_index'] = (df_feat['sleep_hours'] * df_feat['diet_quality_1_10']) / (df_feat['caffeine_intake_mg_per_day'] + eps)
+    df_feat['study_vs_screen'] = (df_feat['study_hours_per_week'] / (df_feat['screen_time_hrs_per_day'] * 7 + eps)).clip(upper=50)
+    df_feat['recovery_index'] = ((df_feat['sleep_hours'] * df_feat['diet_quality_1_10']) / (df_feat['caffeine_intake_mg_per_day'] + eps)).clip(upper=100)
     return df_feat
 
 def add_aggregate_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -44,6 +44,45 @@ def add_binning_features(df: pd.DataFrame) -> pd.DataFrame:
     df_feat['is_sleep_deprived'] = (df_feat['sleep_hours'] < 6.0).astype(int)
     df_feat['is_highly_active'] = (df_feat['physical_activity_hrs_per_week'] >= 5.0).astype(int)
     df_feat['high_caffeine'] = (df_feat['caffeine_intake_mg_per_day'] > 250).astype(int)
+    return df_feat
+
+def add_missingness_features(df: pd.DataFrame) -> pd.DataFrame:
+    df_feat = df.copy()
+    # Define columns known to have missingness from Phase 1 audit
+    missing_cols = [
+        'caffeine_intake_mg_per_day', 'class_attendance_percent', 
+        'social_media_hrs_per_day', 'study_hours_per_week', 
+        'uses_productivity_app', 'favorite_content_type'
+    ]
+    
+    # Only process columns that actually exist in the current dataframe
+    cols_to_check = [col for col in missing_cols if col in df_feat.columns]
+    
+    if cols_to_check:
+        df_feat['missing_count'] = df_feat[cols_to_check].isnull().sum(axis=1)
+        for col in cols_to_check:
+            df_feat[f'is_missing_{col}'] = df_feat[col].isnull().astype(int)
+            
+    return df_feat
+
+def add_group_aggregations(df: pd.DataFrame) -> pd.DataFrame:
+    df_feat = df.copy()
+    
+    # Group by field_of_study if available
+    if 'field_of_study' in df_feat.columns:
+        # Group mean transformations
+        if 'gpa' in df_feat.columns:
+            df_feat['gpa_field_mean'] = df_feat.groupby('field_of_study')['gpa'].transform('mean')
+            df_feat['gpa_diff_field_mean'] = df_feat['gpa'] - df_feat['gpa_field_mean']
+            
+        if 'academic_stress_level_1_10' in df_feat.columns:
+            df_feat['stress_field_mean'] = df_feat.groupby('field_of_study')['academic_stress_level_1_10'].transform('mean')
+            df_feat['stress_diff_field_mean'] = df_feat['academic_stress_level_1_10'] - df_feat['stress_field_mean']
+            
+        if 'screen_time_hrs_per_day' in df_feat.columns:
+            df_feat['screen_time_field_mean'] = df_feat.groupby('field_of_study')['screen_time_hrs_per_day'].transform('mean')
+            df_feat['screen_time_diff_field_mean'] = df_feat['screen_time_hrs_per_day'] - df_feat['screen_time_field_mean']
+            
     return df_feat
 
 # ─────────────────────────────────────────────────
@@ -87,6 +126,8 @@ _FAMILY_MAP = {
     "cross_domain": add_cross_domain_features,
     "aggregate": add_aggregate_features,
     "binning": add_binning_features,
+    "missingness": add_missingness_features,
+    "group_aggregations": add_group_aggregations,
 }
 
 def generate_features(df: pd.DataFrame, families: list = None) -> pd.DataFrame:
