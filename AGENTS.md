@@ -20,3 +20,9 @@ This file provides context, user preferences, and tech stack information to guid
 3. **Data Processing**: Prioritize memory efficiency (e.g., using appropriate data types in `polars` or `pandas`).
 4. **Reproducibility**: Ensure *random seeds* are always set consistently at the beginning of each script (`utils.seed_everything`).
 5. **Ignore Large Files**: NEVER add files from the `data/` directory (especially `.csv` and `.parquet`) or large model files (`.pkl`, `.joblib`, `.h5`) to the Git history. Always rely on `.gitignore`.
+
+## Phase 1 Conventions & Decisions
+During our Phase 1 (Data Forensics & Canonicalization) implementation, we established the following conventions which must be adhered to throughout the project:
+1. **Tooling Choice**: While `polars` is recommended for large datasets, we use **`pandas`** for forensics and preprocessing scripts since the dataset is small (4,048 rows), allowing for easier visual exploration and statistical testing.
+2. **Handling Impossible Outliers**: Values that are strictly impossible (e.g., negative counts like `notifications = -5`) are converted to `NaN` during the canonicalization step. Do not drop the rows; let the Phase 2 imputer handle them to maintain the dataset distribution.
+3. **Canonicalization Output**: Never overwrite raw column data. Always retain the original column and create the cleaned/normalized version with a `_clean` suffix (e.g., `age` -> `age_clean`).
