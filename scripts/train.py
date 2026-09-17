@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.preprocessing import apply_canonicalization
 from src.features import generate_features
-from src.validation import get_cv_strategy, evaluate_model, generate_error_analysis
+from src.validation import get_cv_strategy, evaluate_model, generate_error_analysis, optimize_thresholds
 from src.models import get_baseline_models, build_baseline_pipeline, compute_xgb_sample_weights
 
 def main():
@@ -67,7 +67,7 @@ def main():
     # Precompute sample_weight for XGBoost (class balancing workaround)
     xgb_sample_weight = compute_xgb_sample_weights(y)
     
-    with mlflow.start_run(run_name="Phase_3_5_Hardening"):
+    with mlflow.start_run(run_name="Phase_3_6_Architecture_Upgrade"):
         mlflow.log_param("cv_folds", 5)
         mlflow.log_param("cv_seed", 42)
         mlflow.log_param("numeric_features_count", len(numeric_features))
@@ -87,11 +87,23 @@ def main():
                 oof_predictions_df[f"{model_name}_pred"] = oof_preds
                 if oof_proba is not None:
                     oof_probas[model_name] = oof_proba
+                    
+                # Threshold Optimization
+                best_f1, best_weights, best_preds = optimize_thresholds(y, oof_proba)
+                if best_f1 is not None:
+                    print(f"  Optimized OOF Macro-F1: {best_f1:.4f} (Weights: {best_weights})")
+                else:
+                    best_f1 = overall_score
                 
                 mlflow.log_param("model_name", model_name)
-                mlflow.log_metric("macro_f1", overall_score)
+                mlflow.log_metric("macro_f1_default", overall_score)
+                mlflow.log_metric("macro_f1_tuned", best_f1)
                 
-                results.append({'Model': model_name, 'Macro-F1 OOF': overall_score})
+                results.append({
+                    'Model': model_name, 
+                    'Macro-F1 (Default)': overall_score,
+                    'Macro-F1 (Tuned)': best_f1
+                })
                 
                 # Error Analysis for EVERY model (User's request)
                 cm_path, misclassified_mask = generate_error_analysis(
@@ -114,8 +126,8 @@ def main():
                 mlflow.log_artifact(csv_path)
 
         # 5. Summarize Results
-        df_results = pd.DataFrame(results).sort_values(by='Macro-F1 OOF', ascending=False)
-        print("\n=== Phase 3.5 Hardening Results ===")
+        df_results = pd.DataFrame(results).sort_values(by='Macro-F1 (Tuned)', ascending=False)
+        print("\n=== Phase 3.6 Architecture Upgrade Results ===")
         print(df_results)
         
         # Save OOF predictions DataFrame
@@ -133,12 +145,12 @@ def main():
         # Save Report locally
         report_path = r"C:\Users\user\.gemini\antigravity-ide\brain\61d1d5ec-f855-42cb-8916-4ccc318a689b\phase3_feature_engineering_report.md"
         
-        md_table = "| Model | Macro-F1 OOF |\n|---|---|\n"
+        md_table = "| Model | Macro-F1 (Default) | Macro-F1 (Tuned) |\n|---|---|---|\n"
         for _, row in df_results.iterrows():
-            md_table += f"| {row['Model']} | {row['Macro-F1 OOF']:.4f} |\n"
+            md_table += f"| {row['Model']} | {row['Macro-F1 (Default)']:.4f} | {row['Macro-F1 (Tuned)']:.4f} |\n"
             
         report_lines = [
-            "# Phase 3 Feature Engineering MLflow Results",
+            "# Phase 3.6 Architecture Upgrade MLflow Results",
             "\n",
             md_table,
             "\n",

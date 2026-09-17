@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import f1_score
+from scipy.optimize import minimize
 
 def get_cv_strategy(n_splits: int = 5, random_state: int = 42) -> StratifiedKFold:
     """
@@ -74,6 +75,34 @@ def evaluate_model(model, X: pd.DataFrame, y: pd.Series, cv: StratifiedKFold,
     
     return overall_score, oof_preds, (oof_proba if has_proba else None)
 
+
+def optimize_thresholds(y_true, oof_proba: np.ndarray) -> tuple:
+    """
+    Optimizes class probability multipliers to maximize Macro-F1 score.
+    Returns:
+        best_f1: Float (optimized Macro-F1 score)
+        best_weights: Array of multipliers
+        best_preds: pd.Series of the optimized hard predictions
+    """
+    if oof_proba is None:
+        return None, None, None
+        
+    y_true_arr = y_true.values if isinstance(y_true, pd.Series) else y_true
+    
+    def loss(weights):
+        w_proba = oof_proba * weights
+        preds = np.argmax(w_proba, axis=1)
+        return -f1_score(y_true_arr, preds, average='macro')
+        
+    res = minimize(loss, [1.0, 1.0, 1.0], method='Nelder-Mead')
+    best_weights = res.x
+    
+    w_proba = oof_proba * best_weights
+    best_preds = np.argmax(w_proba, axis=1)
+    best_f1 = -res.fun
+    
+    idx = y_true.index if hasattr(y_true, 'index') else None
+    return best_f1, best_weights, pd.Series(best_preds, index=idx)
 
 def generate_error_analysis(y_true, y_pred, model_name: str, output_dir: str):
     """
