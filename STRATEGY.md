@@ -452,6 +452,32 @@ from sklearn.calibration import CalibratedClassifierCV
 
 ---
 
+### Phase 6: Ensemble & Decision Optimization (COMPLETED — 2026-09-18)
+
+- **Status:** Completed. Broke the single-model ceiling of ~0.667.
+- **Method:** Weighted Soft-Voting optimized via Optuna (200 trials) + global Nelder-Mead threshold optimization.
+- **Results:**
+  - `Scenario_4_TreeBased` (CatBoost, XGBoost, LightGBM, RandomForest, ExtraTrees) won with **0.6796** Macro-F1.
+  - Weights were heavily skewed towards XGBoost (43.7%) and CatBoost (43.5%), proving that the other tree models only provided minor complementary boosts.
+- **Insight:** Ensembling yielded a solid +0.012 Macro-F1 boost, but the improvement was smaller than expected due to an inherent Bayes Error rate and high label noise in the `High` vs `Medium` boundary.
+
+---
+
+### Phase 6.5: Breakthrough Experiments (COMPLETED — 2026-09-18)
+
+We ran 4 independent, modular experiments to attack the noise ceiling and capture the remaining signal found during our deep forensics audit:
+
+| Exp | Name | Concept | Verdict (Result vs Baseline) |
+|:---|:---|:---|:---|
+| **A** | **Interaction Features** | Explicitly multiply `uses_productivity_app` and `frequently_procrastinates` by numeric severity levels. | ❌ **Declined**. LightGBM dropped to 0.6488 (vs 0.6539). Forcing explicit categoric interactions confused the tree models instead of helping them. |
+| **B** | **Ordinal Classification** | Decompose 3-class target into 2 binary models: `P(Y ≥ Medium)` and `P(Y ≥ High)`. | ⚠️ **Mixed**. CatBoost gained significantly (0.6422 vs 0.6305), but XGBoost and LightGBM degraded. |
+| **C** | **Stacking Meta-Learner** | Use 21 OOF probabilities as features for a highly regularized Logistic Regression. | ❌ **Declined**. Meta LogReg scored 0.6706, which is good but couldn't beat our simple soft-voting Phase 6 Ensemble (0.6796). |
+| **D** | **Extended Groups** | More aggressive relative group features (z-scores by gender, field_of_study). | ⚠️ **Mixed**. RandomForest loved the peer-group z-scores (0.6471 vs 0.6385), but primary boosting models dropped slightly. |
+
+**Final Conclusion:** The "noise ceiling" is a real, inherent property of this survey dataset. None of the architectural or feature-based interventions were able to push our top models beyond their established Phase 3.6 limits. Therefore, the `Scenario 4 (Tree-Based Only)` ensemble from Phase 6 (Macro-F1: **0.6796**) remains our undisputed best configuration for the final submission.
+
+---
+
 ## Phase 7 — Final Submission (Day 11)
 
 **Jangan lakukan 40 eksperimen baru di hari terakhir.**
