@@ -104,6 +104,44 @@ def optimize_thresholds(y_true, oof_proba: np.ndarray) -> tuple:
     idx = y_true.index if hasattr(y_true, 'index') else None
     return best_f1, best_weights, pd.Series(best_preds, index=idx)
 
+def optimize_regression_thresholds(y_true, y_pred_cont: np.ndarray) -> tuple:
+    """
+    Optimizes two thresholds [t1, t2] to convert continuous regression predictions
+    into discrete class labels [0, 1, 2] to maximize Macro-F1 score.
+    Returns:
+        best_f1: Float (optimized Macro-F1 score)
+        best_thresholds: Array of [t1, t2]
+        best_preds: pd.Series of the optimized hard predictions
+    """
+    if y_pred_cont is None:
+        return None, None, None
+        
+    y_true_arr = y_true.values if isinstance(y_true, pd.Series) else y_true
+    
+    def loss(thresholds):
+        t1, t2 = thresholds
+        if t1 >= t2:
+            return 0.0
+            
+        preds = np.zeros_like(y_pred_cont)
+        preds[y_pred_cont >= t1] = 1
+        preds[y_pred_cont >= t2] = 2
+        return -f1_score(y_true_arr, preds, average='macro')
+        
+    res = minimize(loss, [0.5, 1.5], method='Nelder-Mead')
+    best_thresholds = res.x
+    
+    t1, t2 = best_thresholds
+    best_preds = np.zeros_like(y_pred_cont)
+    best_preds[y_pred_cont >= t1] = 1
+    best_preds[y_pred_cont >= t2] = 2
+    
+    best_f1 = -res.fun
+    
+    idx = y_true.index if hasattr(y_true, 'index') else None
+    return best_f1, best_thresholds, pd.Series(best_preds, index=idx)
+
+
 def generate_error_analysis(y_true, y_pred, model_name: str, output_dir: str):
     """
     Generates a confusion matrix plot and returns indices of misclassified samples.

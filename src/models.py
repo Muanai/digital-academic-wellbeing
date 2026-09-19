@@ -10,7 +10,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.utils.class_weight import compute_sample_weight
 import lightgbm as lgb
 import xgboost as xgb
-from catboost import CatBoostClassifier
+from catboost import CatBoostClassifier, CatBoostRegressor
 
 def get_baseline_models(random_state: int = 42) -> dict:
     """
@@ -61,6 +61,37 @@ def get_baseline_models(random_state: int = 42) -> dict:
     }
     return models
 
+def get_regression_models(random_state: int = 42) -> dict:
+    """
+    Returns a dictionary of candidate baseline regression models for Regression Fusion.
+    """
+    models = {
+        "LightGBM_Reg_s1": lgb.LGBMRegressor(
+            random_state=42, n_estimators=100, subsample=0.8, colsample_bytree=0.8, verbose=-1
+        ),
+        "LightGBM_Reg_s2": lgb.LGBMRegressor(
+            random_state=123, n_estimators=100, subsample=0.8, colsample_bytree=0.8, verbose=-1
+        ),
+        "LightGBM_Reg_s3": lgb.LGBMRegressor(
+            random_state=7, n_estimators=100, subsample=0.8, colsample_bytree=0.8, verbose=-1
+        ),
+        "XGBoost_Reg_s1": xgb.XGBRegressor(
+            random_state=42, n_estimators=100, subsample=0.8, colsample_bytree=0.8, eval_metric='rmse'
+        ),
+        "XGBoost_Reg_s2": xgb.XGBRegressor(
+            random_state=123, n_estimators=100, subsample=0.8, colsample_bytree=0.8, eval_metric='rmse'
+        ),
+        "XGBoost_Reg_s3": xgb.XGBRegressor(
+            random_state=7, n_estimators=100, subsample=0.8, colsample_bytree=0.8, eval_metric='rmse'
+        ),
+        "CatBoost_Reg_s1": CatBoostRegressor(
+            random_state=42, iterations=100, verbose=False
+        ),
+        "CatBoost_Reg_s2": CatBoostRegressor(
+            random_state=123, iterations=100, verbose=False
+        )
+    }
+    return models
 
 def compute_xgb_sample_weights(y: pd.Series) -> np.ndarray:
     """
