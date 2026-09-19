@@ -67,21 +67,27 @@ def add_missingness_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def add_group_aggregations(df: pd.DataFrame) -> pd.DataFrame:
     df_feat = df.copy()
+    eps = 1e-5
     
-    # Group by field_of_study if available
-    if 'field_of_study' in df_feat.columns:
-        # Group mean transformations
-        if 'gpa' in df_feat.columns:
-            df_feat['gpa_field_mean'] = df_feat.groupby('field_of_study')['gpa'].transform('mean')
-            df_feat['gpa_diff_field_mean'] = df_feat['gpa'] - df_feat['gpa_field_mean']
-            
-        if 'academic_stress_level_1_10' in df_feat.columns:
-            df_feat['stress_field_mean'] = df_feat.groupby('field_of_study')['academic_stress_level_1_10'].transform('mean')
-            df_feat['stress_diff_field_mean'] = df_feat['academic_stress_level_1_10'] - df_feat['stress_field_mean']
-            
-        if 'screen_time_hrs_per_day' in df_feat.columns:
-            df_feat['screen_time_field_mean'] = df_feat.groupby('field_of_study')['screen_time_hrs_per_day'].transform('mean')
-            df_feat['screen_time_diff_field_mean'] = df_feat['screen_time_hrs_per_day'] - df_feat['screen_time_field_mean']
+    target_num_cols = ['gpa', 'academic_stress_level_1_10', 'study_hours_per_week',
+                       'sleep_hours', 'screen_time_hrs_per_day', 'procrastination_level_1_10']
+    
+    group_keys = ['field_of_study', 'uses_productivity_app_clean', 'gender_clean']
+    
+    for grp in group_keys:
+        if grp in df_feat.columns:
+            for num in target_num_cols:
+                if num in df_feat.columns:
+                    # Calculate mean and std
+                    mean_col = f'{num}_by_{grp}_mean'
+                    std_col = f'{num}_by_{grp}_std'
+                    
+                    df_feat[mean_col] = df_feat.groupby(grp)[num].transform('mean')
+                    df_feat[std_col] = df_feat.groupby(grp)[num].transform('std')
+                    
+                    # Difference and Z-Score
+                    df_feat[f'{num}_diff_{grp}'] = df_feat[num] - df_feat[mean_col]
+                    df_feat[f'{num}_z_{grp}'] = df_feat[f'{num}_diff_{grp}'] / (df_feat[std_col] + eps)
             
     return df_feat
 

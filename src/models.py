@@ -34,19 +34,29 @@ def get_baseline_models(random_state: int = 42) -> dict:
             hidden_layer_sizes=(64, 32), max_iter=1000, early_stopping=True, 
             random_state=random_state
         ),
-        "LightGBM": lgb.LGBMClassifier(
-            class_weight='balanced', random_state=random_state, n_estimators=100,
-            verbose=-1
+        "LightGBM_s1": lgb.LGBMClassifier(
+            class_weight='balanced', random_state=42, n_estimators=100, subsample=0.8, colsample_bytree=0.8, verbose=-1
         ),
-        # XGBoost does not support class_weight='balanced' natively for multiclass.
-        # Pass sample_weight at fit-time via evaluate_model() using compute_xgb_sample_weights().
-        "XGBoost": xgb.XGBClassifier(
-            random_state=random_state, n_estimators=100,
-            eval_metric='mlogloss'
+        "LightGBM_s2": lgb.LGBMClassifier(
+            class_weight='balanced', random_state=123, n_estimators=100, subsample=0.8, colsample_bytree=0.8, verbose=-1
         ),
-        "CatBoost": CatBoostClassifier(
-            auto_class_weights='Balanced', random_state=random_state, iterations=100,
-            verbose=False
+        "LightGBM_s3": lgb.LGBMClassifier(
+            class_weight='balanced', random_state=7, n_estimators=100, subsample=0.8, colsample_bytree=0.8, verbose=-1
+        ),
+        "XGBoost_s1": xgb.XGBClassifier(
+            random_state=42, n_estimators=100, subsample=0.8, colsample_bytree=0.8, eval_metric='mlogloss'
+        ),
+        "XGBoost_s2": xgb.XGBClassifier(
+            random_state=123, n_estimators=100, subsample=0.8, colsample_bytree=0.8, eval_metric='mlogloss'
+        ),
+        "XGBoost_s3": xgb.XGBClassifier(
+            random_state=7, n_estimators=100, subsample=0.8, colsample_bytree=0.8, eval_metric='mlogloss'
+        ),
+        "CatBoost_s1": CatBoostClassifier(
+            auto_class_weights='Balanced', random_state=42, iterations=100, verbose=False
+        ),
+        "CatBoost_s2": CatBoostClassifier(
+            auto_class_weights='Balanced', random_state=123, iterations=100, verbose=False
         )
     }
     return models
