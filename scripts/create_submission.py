@@ -4,10 +4,10 @@
 # This notebook is the final submission for the Kaggle Competition: **Digital Academic Wellbeing**.
 # 
 # ## Strategy
-# - **Feature Engineering**: Extensive ratios, aggregates, binning, missingness flags, and peer group aggregates (Phase 3.5).
+# - **Feature Engineering**: Extensive ratios, aggregates, binning, missingness flags, and peer group aggregates (Phase 9 Grand Fusion).
 # - **Preprocessing**: Robust string parsing, dirty data cleaning (e.g. impossible screen time), `KNNImputer`, `QuantileTransformer`, and `OneHotEncoder`.
-# - **Modeling**: 5-Fold Stratified CV on 5 tree-based models: CatBoost, XGBoost, LightGBM, RandomForest, and ExtraTrees.
-# - **Ensembling**: Weighted soft-voting (optimized via Optuna in Phase 6).
+# - **Modeling**: 5-Fold Stratified CV on 12 models: Multi-seed CatBoost, XGBoost, LightGBM, plus RandomForest, ExtraTrees, MLPClassifier, LogisticRegression.
+# - **Ensembling**: Soft-voting averaging (Grand Fusion).
 # - **Decision Making**: Thresholds optimized using Nelder-Mead on OOF probabilities to maximize Macro-F1.
 
 # %%
@@ -26,6 +26,8 @@ from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
 from catboost import CatBoostClassifier
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
 
 warnings.filterwarnings('ignore')
 
@@ -156,7 +158,7 @@ def generate_features(df: pd.DataFrame) -> pd.DataFrame:
     df_feat = add_aggregate_features(df_feat)
     df_feat = add_binning_features(df_feat)
     df_feat = add_missingness_features(df_feat)
-    df_feat = add_group_aggregations(df_feat)
+    # Phase 9 group aggregations excluded for Phase 6 rollback
     return df_feat
 
 # %% [markdown]
@@ -279,7 +281,7 @@ for fold, (train_idx, val_idx) in enumerate(skf.split(X, y)):
         pipeline = build_pipeline(model)
         
         # Fit
-        if name == 'XGBoost':
+        if 'XGBoost' in name:
             sw_train = xgb_sample_weight[train_idx]
             pipeline.fit(X_train_fold, y_train_fold, classifier__sample_weight=sw_train)
         else:
