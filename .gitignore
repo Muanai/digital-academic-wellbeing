@@ -49,4 +49,5 @@ mlruns/
 scratch/
 .pt_tmp/
 lightning_logs/
-saved_models/mlflow_tuning.db
+mlflow_tuning.db
+saved_models/
