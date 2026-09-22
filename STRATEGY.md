@@ -528,6 +528,63 @@ We ran 4 independent, modular experiments to attack the noise ceiling and captur
 
 ---
 
+## Phase 17: TreeBased Ensemble Boost (COMPLETED — 2026-09-22)
+
+**Goal:** Meningkatkan `Scenario_4_TreeBased` (Macro-F1: **0.6797**) tanpa mengubah arsitektur dasar (tetap 100% tree-based).
+
+### Diagnosis dari MLflow Data
+
+Analisis mendalam dari MLflow database (`sqlite:///mlflow.db`) mengungkap tiga masalah utama:
+
+1. **Weight Concentration:** CatBoost (43.2%) + XGBoost (43.3%) = 86.5% total weight. LightGBM/RF/ET masing-masing < 5%. Ini berarti ensemble kita *de facto* hanya 2-model blend.
+2. **Medium Class Bottleneck:** F1-Medium = **0.568** adalah kelas terlemah. F1-Low = 0.809 (bagus), F1-High = 0.662 (lumayan). Perbaikan Medium 0.57→0.60 = Macro-F1 +0.01.
+3. **Threshold Dependency:** Optimized F1 (0.6797) vs Raw F1 (0.6609) = gap 0.019. Ini tinggi — model kita "butuh bantuan" threshold untuk berfungsi optimal. Calibration bisa membantu mengurangi gap ini.
+
+### Strategy 2: Multi-Seed Diversity
+
+**Concept:** Melatih CatBoost dan XGBoost dengan 3 random seeds berbeda (42, 123, 7). Karena kedua model ini mendominasi 86% weight, menambah diversity di sini paling berdampak.
+
+**Rationale:** Multi-seed bagging mengurangi variance tanpa bias. Setiap seed menghasilkan decision boundary yang sedikit berbeda, dan rata-rata probabilitasnya lebih smooth.
+
+### Strategy 3: Feature-Diversified Sub-Ensembles
+
+**Concept:** Alih-alih semua model pakai feature set yang sama, kita berikan feature set berbeda:
+- **CatBoost/XGBoost/LightGBM**: Full features + Phase 12 tuned params
+- **RandomForest/ExtraTrees**: Full features + `winning_domain` features (wellbeing_force_ratio, academic_health, sleep_efficiency, dll)
+
+**Rationale:** Phase 6.5 Experiment D membuktikan RF menyukai group z-scores (0.6471 vs 0.6385), tapi boosters menurun. Dengan memberikan feature set berbeda, kita memaksimalkan complementary error patterns — syarat utama ensemble yang efektif.
+
+### Strategy 4: Probability Calibration
+
+**Concept:** Tree models sering menghasilkan probabilitas yang tidak terkalibrasi dengan baik. Kita gunakan `CalibratedClassifierCV(method='isotonic')` untuk mengkalibrasi probabilitas OOF sebelum blending.
+
+**Rationale:** Gap besar antara Raw F1 (0.661) dan Optimized F1 (0.680) menunjukkan bahwa probabilitas mentah sub-optimal. Calibration bisa "meratakan" distribusi probabilitas sehingga threshold optimization bekerja lebih baik.
+
+### Strategy 5: Rank-Based Blending
+
+**Concept:** Alih-alih blending raw probabilities langsung, kita konversi ke rank percentiles terlebih dahulu.
+
+**Rationale:** Setiap model memiliki skala probabilitas yang berbeda. CatBoost mungkin output range [0.1, 0.9] sementara RF output [0.2, 0.6]. Rank-based blending menghilangkan perbedaan skala ini, membuat weight optimization lebih stabil.
+
+### Strategy 1: Deep Hyperparameter Tuning (DEFERRED)
+
+**Status:** Disimpan untuk nanti. Budget 100 trials + tune RF/ET (yang belum pernah di-tune).
+
+---
+
+### Hasil Akhir Phase 17 (The "Noise Ceiling" Confirmed)
+
+Semua strategi di atas (S2-S5) **gagal** mengalahkan baseline `Scenario_4_TreeBased` (0.6756 menggunakan Phase 12 tuned params). 
+
+1. **Noise ceiling confirmed:** Dataset survey ini memiliki batas intrinsik (noise ceiling) yang tidak bisa ditembus oleh trik ensemble lanjutan.
+2. **Multi-seed merugikan sedikit (0.6754 vs 0.6756):** Menambah seed CatBoost/XGBoost dari 1→3 hanya menyebarkan bobot ensemble ke lebih banyak model, namun tidak menambah signal baru.
+3. **Calibration merugikan (-0.005):** Isotonic calibration pada dataset sekecil ini (4,048 baris) justru menambah *noise* akibat inner 3-fold CV yang tidak stabil.
+4. **Rank blending netral-negatif:** Menghilangkan magnitude probabilitas melemahkan efektivitas *threshold optimization*.
+
+**Kesimpulan:** Kita berhenti mencari "holy grail" dari ensemble diversity di dataset ini. Kita akan melanjutkan dengan **Strategy 1 (Deep Hyperparameter Tuning)** sebagai ikhtiar terakhir untuk mengerek skor beberapa poin desimal.
+
+---
+
 ## Phase 7 — Final Submission (Day 11)
 
 **Jangan lakukan 40 eksperimen baru di hari terakhir.**
