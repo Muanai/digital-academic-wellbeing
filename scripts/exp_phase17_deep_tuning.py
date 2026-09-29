@@ -284,7 +284,19 @@ def run_tuning():
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     N_TRIALS = 100
     
+    # Load existing best params if resuming
+    import os
+    if os.path.exists('experiments/phase17_best_params.json'):
+        with open('experiments/phase17_best_params.json', 'r') as f:
+            best_params_all = json.load(f)
+    else:
+        best_params_all = {}
+    
     for model_name, (objective_func, folds_data) in models_to_tune.items():
+        if model_name in best_params_all:
+            print(f"Skipping {model_name} (already found in experiments/phase17_best_params.json)", flush=True)
+            continue
+
         print(f"==========================================", flush=True)
         print(f"Starting Deep Tuning for {model_name} ({N_TRIALS} trials)", flush=True)
         print(f"==========================================", flush=True)
@@ -306,9 +318,9 @@ def run_tuning():
                 'best_macro_f1': study.best_value,
                 'params': study.best_params
             }
-            
-    with open('experiments/phase17_best_params.json', 'w') as f:
-        json.dump(best_params_all, f, indent=4)
+            # Save immediately after each model finishes
+            with open('experiments/phase17_best_params.json', 'w') as f:
+                json.dump(best_params_all, f, indent=4)
         
     print("==========================================", flush=True)
     print("Phase 17 Deep Tuning Complete! Best parameters saved to experiments/phase17_best_params.json", flush=True)
