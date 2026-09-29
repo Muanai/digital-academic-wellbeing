@@ -1,21 +1,41 @@
-import mlflow
+import sqlite3
 import json
-import os
 
-mlflow.set_tracking_uri('sqlite:///mlflow.db')
-experiment_name = 'Phase_6_Ensemble'
-exp = mlflow.get_experiment_by_name(experiment_name)
-runs = mlflow.search_runs(experiment_ids=[exp.experiment_id])
-run = runs[runs['tags.mlflow.runName'] == 'Scenario_4_TreeBased'].iloc[0]
+conn = sqlite3.connect('mlflow.db')
+cur = conn.cursor()
 
-print('--- Phase 6 Best Params ---')
-for k, v in run.items():
-    if 'params.weight_' in k:
-        print(f'{k}: {v}')
+cur.execute("SELECT experiment_id FROM experiments WHERE name = 'Phase17_Deep_Tuning'")
+exp_id = cur.fetchone()[0]
 
-import tempfile
-client = mlflow.tracking.MlflowClient()
-local_path = client.download_artifacts(run.run_id, 'ensemble_config')
-for f in os.listdir(local_path):
-    with open(os.path.join(local_path, f)) as fp:
-        print(fp.read())
+best_params_all = {}
+
+for model in ['LightGBM', 'XGBoost']:
+    run_name = f'DeepTuning_{model}'
+    cur.execute('''
+        SELECT run_uuid FROM runs 
+        WHERE experiment_id = ? AND name = ?
+        ORDER BY start_time DESC LIMIT 1
+    ''', (exp_id, run_name))
+    run_uuid = cur.fetchone()[0]
+    
+    cur.execute("SELECT value FROM metrics WHERE run_uuid = ? AND key = 'best_macro_f1'", (run_uuid,))
+    best_f1 = cur.fetchone()[0]
+    
+    cur.execute("SELECT key, value FROM params WHERE run_uuid = ?", (run_uuid,))
+    params = {}
+    for row in cur.fetchall():
+        key, val = row
+        try:
+            if '.' in val or 'e' in val.lower():
+                params[key] = float(val)
+            else:
+                params[key] = int(val)
+        except:
+            params[key] = val
+            
+    best_params_all[model] = {'best_macro_f1': best_f1, 'params': params}
+
+with open('experiments/phase17_best_params.json', 'w') as f:
+    json.dump(best_params_all, f, indent=4)
+
+print('Saved successfully to phase17_best_params.json')

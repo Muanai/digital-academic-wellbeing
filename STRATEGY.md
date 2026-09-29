@@ -686,6 +686,48 @@ To address limitations found in Phase 3.5, we introduced architectural and evalu
 
 ---
 
+### Phase 17: TreeBased Ensemble Boost & Deep Hyperparameter Tuning (COMPLETED — 2026-09-29)
+
+Focus: Optimizing and breaking through the noise ceiling of the leading ensemble candidate (`Scenario_4_TreeBased`, baseline Macro-F1 = 0.6797).
+
+#### 1. Strategies 2–5 Exploration (Post-Processing & Structure)
+| Strategy | OOF Macro-F1 | Finding & Key Insight |
+|---|:---:|---|
+| **S0 Baseline (Scenario_4_TreeBased)** | **0.6797** | Reference benchmark (CatBoost, XGBoost, LightGBM, RandomForest, ExtraTrees). |
+| **S2 Multi-Seed Diversity** (CB x3, XGB x3) | 0.6790 | Multi-seed averaging reduces variance slightly but does not introduce new signal; score remains constrained by the noise ceiling. |
+| **S3 Feature-Diversified Sub-Ensembles** | 0.6756 | Supplying RF/ET with ablation winning domain features radically shifted weight distribution (RF took ~25% weight), maintaining strong ensemble diversity. |
+| **S4 Probability Calibration (Isotonic)** | 0.6713 | Isotonic regression overfitted the validation folds due to small sample size per fold (~809 rows), degrading threshold multiplier effectiveness. |
+| **S5 Rank-Based Blending** | 0.6702 | Converting probabilities to ranks flattened the calibrated probability contours needed by Nelder-Mead threshold optimization. |
+
+#### 2. Strategy 1: Deep Hyperparameter Tuning (100 Optuna Trials per Model)
+Tuned directly on 5-fold CV with post-hoc Nelder-Mead threshold optimization:
+| Model | Pre-P17 Best F1 | P17 Deep Tuned F1 | Delta | Key Optimal Hyperparameters |
+|---|:---:|:---:|:---:|---|
+| **CatBoost** | 0.6656 | **0.6763** | **+0.0107** | `iterations=467, lr=0.0286, depth=6, l2_leaf_reg=0.0236, random_strength=2.16, bagging_temperature=0.55` |
+| **LightGBM** | 0.6678 | **0.6689** | +0.0011 | `n_estimators=539, lr=0.0100, num_leaves=117, depth=9, subsample=0.49, colsample_bytree=0.61` |
+| **XGBoost** | 0.6652 | **0.6668** | +0.0016 | `n_estimators=186, lr=0.0332, max_depth=9, gamma=2.51, subsample=0.62, colsample_bytree=0.72` |
+| **RandomForest_WD** | 0.6515 | **0.6662** | **+0.0147** | `n_estimators=310, max_depth=18, min_samples_split=5, min_samples_leaf=1, max_features='sqrt'` |
+| **ExtraTrees_WD** | 0.6251 | **0.6634** | **+0.0383** | `n_estimators=470, max_depth=24, min_samples_split=30, min_samples_leaf=1, max_features=None` |
+
+**Key Takeaways:**
+1. **CatBoost Breakthrough**: CatBoost reached **0.6763** as a single model, very close to full ensemble performance (0.6797).
+2. **RF & ET Resurgence**: By pairing bagging trees with winning domain features and deeper trees / leaf regularization, RF jumped by +0.0147 and ET surged by +0.0383, making them far stronger ensemble components.
+3. **Artifacts Saved**: Best hyperparameter set stored in [`experiments/phase17_best_params.json`](file:///c:/Workspace/projects/ml/digital-academic-wellbeing/experiments/phase17_best_params.json).
+
+#### 3. Deep-Tuned Ensemble Breakthrough (Macro-F1 = 0.6806 🏆)
+By combining the OOF predictions of the newly deep-tuned models and optimizing their blending weights (via Optuna 500 trials) along with post-hoc Nelder-Mead threshold multipliers:
+- **Baseline Ceiling**: `Scenario_4_TreeBased` (0.6797)
+- **New Champion**: `Phase17_Boosters_Optimized_Ensemble` (**0.6806**)
+- **Optimal Blend Weights**:
+  - `CatBoost`: **0.8312** (83.1%)
+  - `LightGBM`: **0.0856** (8.6%)
+  - `XGBoost`: **0.0832** (8.3%)
+- **Optimal Threshold Multipliers**: `[1.0650, 1.0784, 0.8360]`
+- **Class F1 Breakdown**: Low = 0.8131, Medium = 0.5730, High = 0.6556
+- **Submission Generated**: [`submission_phase17_deep_ensemble.csv`](file:///c:/Workspace/projects/ml/digital-academic-wellbeing/submission_phase17_deep_ensemble.csv) (1,012 test predictions, 0 nulls).
+
+---
+
 ## Experiment Log (isi setelah setiap run)
 
 File: `experiments/experiment_log.csv`
